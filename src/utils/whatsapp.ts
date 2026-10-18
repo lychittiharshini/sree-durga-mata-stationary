@@ -85,7 +85,7 @@ export function formatXeroxWhatsAppMessage(
 
   msg += `\n\nPlease confirm the details. Thank you!`;
 
-  return msg;
+  return msg.replace(/\\n/g, '\n');
 }
 
 
