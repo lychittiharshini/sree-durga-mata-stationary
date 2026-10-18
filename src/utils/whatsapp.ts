@@ -62,28 +62,32 @@ export interface StationeryRequestItem {
  * Prices and totals are intentionally excluded.
  * Message is always in English.
  */
+
 export function formatXeroxWhatsAppMessage(
   customerName: string,
   items: XeroxItemRequest[],
   _estimatedTotal: number,
   customerNote?: string
 ): string {
-  let msg = `Hello Sree Durga Mata Stationery,\n\n`;
-  msg += `My name is ${customerName.trim()}.\n\n`;
-  msg += `I would like to enquire about the following Xerox services:\n\n`;
+  let msg = `Hello Sree Durga Mata Stationery!`;
 
-  items.forEach((item, idx) => {
-    msg += `${idx + 1}. ${item.label} — Quantity: ${item.quantity}\n`;
+  msg += `\n\nCustomer Name: ${customerName.trim()}`;
+  msg += `\n\nXerox Services Requested:`;
+
+  items.forEach((item, index) => {
+    msg += `\n${index + 1}. ${item.label}`;
+    msg += `\n   Quantity: ${item.quantity} pages`;
   });
 
-  if (customerNote && customerNote.trim()) {
-    msg += `\nAdditional Notes: ${customerNote.trim()}\n`;
+  if (customerNote?.trim()) {
+    msg += `\n\nAdditional Notes: ${customerNote.trim()}`;
   }
 
-  msg += `\nPlease confirm the availability and price. Thank you.`;
+  msg += `\n\nPlease confirm the details. Thank you!`;
 
   return msg;
 }
+
 
 /**
  * Stationery WhatsApp enquiry.
