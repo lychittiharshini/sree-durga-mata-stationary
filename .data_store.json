@@ -1,0 +1,19 @@
+{
+  "settings": {
+    "whatsapp_number": "918341037373",
+    "shop_name": "Sree Durga Mata Stationery",
+    "shop_subtitle": "BOOK STALL & FANCY ITEMS"
+  },
+  "admins": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password_hash": "$2b$10$wlr9tWEwJCqiatY5Dy.FWuZwYPKcfXpQXp48I4DAsk61YqRuwYe2O",
+      "last_login": "2026-10-18T10:23:03.041Z"
+    }
+  ],
+  "products": [],
+  "offers": [],
+  "shop_images": [],
+  "additional_services": []
+}

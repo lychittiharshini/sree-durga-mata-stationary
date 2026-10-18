@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-family: 'Plus Jakarta Sans', 'Noto Sans Telugu', system-ui, -apple-system, sans-serif;
+  }
+}
+
+.font-serif-royal {
+  font-family: 'Cinzel', serif;
+}
+
+/* Subtle background stationery watermarks pattern */
+.bg-maroon-pattern {
+  background-color: #330409;
+  background-image: 
+    radial-gradient(circle at 50% 0%, #5E0C1B 0%, #330409 60%, #200206 100%),
+    radial-gradient(rgba(212, 175, 55, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 28px 28px;
+}
+
+/* Golden text and borders */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #FFE89E 0%, #F5C542 50%, #D49820 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.border-gold-glow {
+  border-color: #D4AF37;
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.25);
+}
+
+.gold-divider {
+  background: linear-gradient(90deg, transparent 0%, #D4AF37 30%, #FFF0B3 50%, #D4AF37 70%, transparent 100%);
+}

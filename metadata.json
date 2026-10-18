@@ -1,0 +1,6 @@
+{
+  "name": "Sree Durga Mata Stationery",
+  "description": "Official website for Sree Durga Mata Stationery (Book Stall & Fancy Items). Browse Xerox rates, request stationery items, and connect via WhatsApp in English or Telugu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
