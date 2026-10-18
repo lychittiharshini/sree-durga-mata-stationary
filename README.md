@@ -83,7 +83,3 @@ npm run dev
 ```
 Open **http://localhost:3000** in your browser.
 
-### Admin Credentials:
-- **Default Username**: `admin`
-- **Default Password**: `DurgaMata@2026`
-*(Configurable via `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env`).*
