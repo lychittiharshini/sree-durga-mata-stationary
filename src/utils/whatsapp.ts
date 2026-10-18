@@ -1,7 +1,6 @@
 
 /**
- * Formats a clean WhatsApp click-to-chat URL:
- * https://wa.me/<CLEAN_NUMBER>?text=<ENCODED_MESSAGE>
+ * Build a WhatsApp click-to-chat URL.
  */
 export function buildWhatsAppUrl(
   rawPhone: string,
@@ -10,33 +9,30 @@ export function buildWhatsAppUrl(
   if (!rawPhone || !rawPhone.trim()) {
     return {
       url: null,
-      error:
-        'The shop WhatsApp number has not been configured yet. Please check back shortly.',
+      error: 'The shop WhatsApp number has not been configured yet.',
     };
   }
 
-  // Remove spaces, dashes, brackets, and plus signs.
   const cleanPhone = rawPhone.replace(/[\s\-()+]/g, '');
 
   if (!/^\d{10,15}$/.test(cleanPhone)) {
     return {
       url: null,
-      error:
-        'Invalid shop WhatsApp number format. Please ensure it has a valid country code.',
+      error: 'Invalid WhatsApp number. Include the country code.',
     };
   }
 
-  const encodedMessage = encodeURIComponent(messageText.trim());
+  // Convert literal "\n" text into real line breaks.
+  const cleanMessage = messageText
+    .replace(/\\n/g, '\n')
+    .replace(/\r\n/g, '\n')
+    .trim();
 
   return {
-    url: `https://wa.me/${cleanPhone}?text=${encodedMessage}`,
+    url: `https://wa.me/${cleanPhone}?text=${encodeURIComponent(cleanMessage)}`,
   };
 }
 
-/**
- * Xerox request item.
- * Price fields are optional for compatibility with existing code.
- */
 export interface XeroxItemRequest {
   label: string;
   pricePerPage?: number;
@@ -44,9 +40,6 @@ export interface XeroxItemRequest {
   total?: number;
 }
 
-/**
- * Stationery request item.
- */
 export interface StationeryRequestItem {
   id?: number;
   name: string;
@@ -58,41 +51,38 @@ export interface StationeryRequestItem {
 }
 
 /**
- * Xerox WhatsApp enquiry.
- * Prices and totals are intentionally excluded.
- * Message is always in English.
+ * Xerox enquiry message — no prices or totals.
  */
-
 export function formatXeroxWhatsAppMessage(
   customerName: string,
   items: XeroxItemRequest[],
   _estimatedTotal: number,
   customerNote?: string
 ): string {
-  let msg = `Hello Sree Durga Mata Stationery!`;
-
-  msg += `\n\nCustomer Name: ${customerName.trim()}`;
-  msg += `\n\nXerox Services Requested:`;
+  const lines: string[] = [
+    'Hello Sree Durga Mata Stationery!',
+    '',
+    `Customer Name: ${customerName.trim()}`,
+    '',
+    'Xerox Services Requested:',
+  ];
 
   items.forEach((item, index) => {
-    msg += `\n${index + 1}. ${item.label}`;
-    msg += `\n   Quantity: ${item.quantity} pages`;
+    lines.push(`${index + 1}. ${item.label}`);
+    lines.push(`   Quantity: ${item.quantity} pages`);
   });
 
   if (customerNote?.trim()) {
-    msg += `\n\nAdditional Notes: ${customerNote.trim()}`;
+    lines.push('', `Additional Notes: ${customerNote.trim()}`);
   }
 
-  msg += `\n\nPlease confirm the details. Thank you!`;
+  lines.push('', 'Please confirm the details. Thank you!');
 
-  return msg.replace(/\\n/g, '\n');
+  return lines.join('\n');
 }
 
-
 /**
- * Stationery WhatsApp enquiry.
- * Keeps the existing stationery price and total behavior.
- * Message is always in English.
+ * Stationery enquiry — preserve existing price behavior.
  */
 export function formatStationeryWhatsAppMessage(
   customerName: string,
@@ -119,14 +109,15 @@ export function formatStationeryWhatsAppMessage(
         item.price * item.quantity
       }`;
     } else {
-      itemLine += ` — Unit Price: Price to be confirmed — Subtotal: To be confirmed`;
+      itemLine +=
+        ` — Unit Price: Price to be confirmed — Subtotal: To be confirmed`;
     }
 
     if (item.offerNote) {
       itemLine += ` [Offer: ${item.offerNote}]`;
     }
 
-    if (item.notes && item.notes.trim()) {
+    if (item.notes?.trim()) {
       itemLine += ` (Note: ${item.notes.trim()})`;
     }
 
@@ -145,7 +136,7 @@ export function formatStationeryWhatsAppMessage(
     msg += `\nEstimated Total: To be confirmed by shop\n`;
   }
 
-  if (customerNote && customerNote.trim()) {
+  if (customerNote?.trim()) {
     msg += `\nAdditional Notes: ${customerNote.trim()}\n`;
   }
 
