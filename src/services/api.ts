@@ -1,8 +1,8 @@
 export interface XeroxRates {
-  bw_single: number;
-  bw_double: number;
-  color_single: number;
-  color_double: number;
+  bw_single: number | null;
+  bw_double: number | null;
+  color_single: number | null;
+  color_double: number | null;
 }
 
 export interface PublicSettings {
@@ -10,6 +10,8 @@ export interface PublicSettings {
   isConfigured: boolean;
   shopName: string;
   shopSubtitle: string;
+  shopAddress?: string;
+  showXeroxPrices: boolean;
   xeroxRates?: XeroxRates;
 }
 
@@ -125,6 +127,26 @@ export async function checkAdminSession(token?: string): Promise<{ authenticated
 
   if (!res.ok) return { authenticated: false };
   return res.json();
+}
+
+export async function updateAdminCredentials(
+  data: { currentPassword: string; newUsername?: string; newPassword?: string },
+  token: string
+): Promise<{ success: boolean; token: string; username: string; message: string }> {
+  const res = await fetch('/api/admin/change-credentials', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(data)
+  });
+
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(body.error || 'Failed to update credentials');
+  }
+  return body;
 }
 
 export async function updateShopWhatsAppNumber(whatsappNumber: string, token: string): Promise<{ success: boolean; whatsappNumber: string; message: string }> {
@@ -298,23 +320,56 @@ export async function deleteAdminAdditionalService(id: number, token: string): P
 }
 
 // Xerox Rates API
-export async function fetchXeroxRates(): Promise<XeroxRates> {
+export async function fetchXeroxRates(): Promise<{ rates: XeroxRates; showPrices: boolean }> {
   const res = await fetch('/api/settings/xerox-rates');
-  if (!res.ok) return { bw_single: 5, bw_double: 6, color_single: 10, color_double: 20 };
+  if (!res.ok) return { rates: { bw_single: 5, bw_double: 6, color_single: 10, color_double: 20 }, showPrices: false };
   const data = await res.json();
-  return data.rates || { bw_single: 5, bw_double: 6, color_single: 10, color_double: 20 };
+  return {
+    rates: data.rates || { bw_single: 5, bw_double: 6, color_single: 10, color_double: 20 },
+    showPrices: Boolean(data.showPrices)
+  };
 }
 
-export async function updateXeroxRates(rates: XeroxRates, token: string): Promise<XeroxRates> {
+export async function updateXeroxRates(
+  data: {
+    bw_single?: number | null;
+    bw_double?: number | null;
+    color_single?: number | null;
+    color_double?: number | null;
+    show_xerox_prices?: boolean;
+  },
+  token: string
+): Promise<{ rates: XeroxRates; showPrices: boolean; message: string }> {
   const res = await fetch('/api/settings/xerox-rates', {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`
     },
-    body: JSON.stringify(rates)
+    body: JSON.stringify(data)
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to update Xerox rates');
-  return data.rates;
+  const resData = await res.json();
+  if (!res.ok) throw new Error(resData.error || 'Failed to update Xerox rates');
+  return {
+    rates: resData.rates,
+    showPrices: Boolean(resData.showPrices),
+    message: resData.message
+  };
+}
+
+export async function updateXeroxVisibility(
+  showPrices: boolean,
+  token: string
+): Promise<{ showPrices: boolean; rates: XeroxRates; message: string }> {
+  const res = await fetch('/api/settings/xerox-visibility', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ showPrices })
+  });
+  const resData = await res.json();
+  if (!res.ok) throw new Error(resData.error || 'Failed to update price visibility');
+  return resData;
 }

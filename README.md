@@ -83,3 +83,8 @@ npm run dev
 ```
 Open **http://localhost:3000** in your browser.
 
+### Admin Portal Access & Security:
+- The Admin Management Panel is strictly restricted to the authorized shop owner.
+- No default credentials or passwords are published or stored in this repository.
+- Owner credentials can be privately configured via `ADMIN_USERNAME` and `ADMIN_PASSWORD` in your server's `.env` environment variables or updated anytime directly inside the password-protected Admin Security dashboard.
+

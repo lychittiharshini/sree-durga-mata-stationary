@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Lock, Save, LogOut, CheckCircle2, AlertCircle, AlertTriangle, Phone, 
-  Package, Tag, Image as ImageIcon, Briefcase, Plus, Trash2, Edit2, ShieldAlert, Printer
+  Package, Tag, Image as ImageIcon, Briefcase, Plus, Trash2, Edit2, ShieldAlert, Printer, EyeOff
 } from 'lucide-react';
 import { 
-  loginAdmin, logoutAdmin, checkAdminSession, updateShopWhatsAppNumber,
+  loginAdmin, logoutAdmin, checkAdminSession, updateShopWhatsAppNumber, updateAdminCredentials,
   fetchAdminProducts, createAdminProduct, updateAdminProduct, deleteAdminProduct, ProductItem,
   fetchAdminOffers, createAdminOffer, updateAdminOffer, deleteAdminOffer, OfferItem,
   fetchShopImages, addAdminShopImage, deleteAdminShopImage, ShopImageItem,
   fetchAdminAdditionalServices, createAdminAdditionalService, updateAdminAdditionalService, deleteAdminAdditionalService, AdditionalServiceItem,
-  XeroxRates, updateXeroxRates, fetchXeroxRates
+  XeroxRates, updateXeroxRates, updateXeroxVisibility, fetchXeroxRates
 } from '../services/api.ts';
 
 interface AdminPanelModalProps {
@@ -18,10 +18,12 @@ interface AdminPanelModalProps {
   currentWhatsAppNumber: string;
   onNumberUpdated: (newNumber: string) => void;
   currentXeroxRates?: XeroxRates;
+  currentShowXeroxPrices?: boolean;
   onXeroxRatesUpdated?: (rates: XeroxRates) => void;
+  onXeroxVisibilityUpdated?: (showPrices: boolean) => void;
 }
 
-type AdminTab = 'whatsapp' | 'xerox_rates' | 'products' | 'offers' | 'images' | 'services';
+type AdminTab = 'whatsapp' | 'xerox_rates' | 'products' | 'offers' | 'images' | 'services' | 'security';
 
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   isOpen,
@@ -29,7 +31,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   currentWhatsAppNumber,
   onNumberUpdated,
   currentXeroxRates,
-  onXeroxRatesUpdated
+  currentShowXeroxPrices,
+  onXeroxRatesUpdated,
+  onXeroxVisibilityUpdated
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [token, setToken] = useState<string>('');
@@ -83,12 +87,21 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [newSvcName, setNewSvcName] = useState<string>('');
   const [newSvcDesc, setNewSvcDesc] = useState<string>('');
 
-  // Tab 6: Xerox Rates state (Editable)
+  // Tab 6: Xerox Rates state (Editable) & Flexible Price Controls
+  const [showXeroxPricesToggle, setShowXeroxPricesToggle] = useState<boolean>(false);
+  const [togglingVisibility, setTogglingVisibility] = useState<boolean>(false);
   const [bwSingleRate, setBwSingleRate] = useState<string>('5');
   const [bwDoubleRate, setBwDoubleRate] = useState<string>('6');
   const [colorSingleRate, setColorSingleRate] = useState<string>('10');
   const [colorDoubleRate, setColorDoubleRate] = useState<string>('20');
   const [saveRatesLoading, setSaveRatesLoading] = useState<boolean>(false);
+
+  // Tab 7: Security & Credentials state
+  const [currentPwd, setCurrentPwd] = useState<string>('');
+  const [newUsernameVal, setNewUsernameVal] = useState<string>('');
+  const [newPwdVal, setNewPwdVal] = useState<string>('');
+  const [confirmNewPwdVal, setConfirmNewPwdVal] = useState<string>('');
+  const [saveSecurityLoading, setSaveSecurityLoading] = useState<boolean>(false);
 
   const showSuccess = (msg: string) => {
     setActionSuccess(msg);
@@ -109,17 +122,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       setActionError(null);
 
       if (currentXeroxRates) {
-        setBwSingleRate(String(currentXeroxRates.bw_single));
-        setBwDoubleRate(String(currentXeroxRates.bw_double));
-        setColorSingleRate(String(currentXeroxRates.color_single));
-        setColorDoubleRate(String(currentXeroxRates.color_double));
+        setBwSingleRate(currentXeroxRates.bw_single !== null && currentXeroxRates.bw_single !== undefined ? String(currentXeroxRates.bw_single) : '');
+        setBwDoubleRate(currentXeroxRates.bw_double !== null && currentXeroxRates.bw_double !== undefined ? String(currentXeroxRates.bw_double) : '');
+        setColorSingleRate(currentXeroxRates.color_single !== null && currentXeroxRates.color_single !== undefined ? String(currentXeroxRates.color_single) : '');
+        setColorDoubleRate(currentXeroxRates.color_double !== null && currentXeroxRates.color_double !== undefined ? String(currentXeroxRates.color_double) : '');
       } else {
-        fetchXeroxRates().then(rates => {
-          setBwSingleRate(String(rates.bw_single));
-          setBwDoubleRate(String(rates.bw_double));
-          setColorSingleRate(String(rates.color_single));
-          setColorDoubleRate(String(rates.color_double));
+        fetchXeroxRates().then(data => {
+          setBwSingleRate(data.rates.bw_single !== null ? String(data.rates.bw_single) : '');
+          setBwDoubleRate(data.rates.bw_double !== null ? String(data.rates.bw_double) : '');
+          setColorSingleRate(data.rates.color_single !== null ? String(data.rates.color_single) : '');
+          setColorDoubleRate(data.rates.color_double !== null ? String(data.rates.color_double) : '');
+          setShowXeroxPricesToggle(Boolean(data.showPrices));
         }).catch(() => {});
+      }
+
+      if (currentShowXeroxPrices !== undefined) {
+        setShowXeroxPricesToggle(Boolean(currentShowXeroxPrices));
       }
 
       const savedToken = sessionStorage.getItem('admin_token');
@@ -137,7 +155,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         });
       }
     }
-  }, [isOpen, currentWhatsAppNumber, currentXeroxRates]);
+  }, [isOpen, currentWhatsAppNumber, currentXeroxRates, currentShowXeroxPrices]);
 
   const loadAdminData = (authToken: string) => {
     fetchAdminProducts(authToken).then(setAdminProducts).catch(() => {});
@@ -407,38 +425,41 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   };
 
-  // 6. Xerox Rates Management
+  // 6. Xerox Rates Management & Flexible Visibility Controls
   const handleSaveRates = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveRatesLoading(true);
 
-    const bwSingle = parseFloat(bwSingleRate);
-    const bwDouble = parseFloat(bwDoubleRate);
-    const colorSingle = parseFloat(colorSingleRate);
-    const colorDouble = parseFloat(colorDoubleRate);
+    const parseRateInput = (str: string): number | null => {
+      if (!str || str.trim() === '') return null;
+      const num = parseFloat(str);
+      return isNaN(num) || num <= 0 ? null : num;
+    };
 
-    if (
-      isNaN(bwSingle) || bwSingle <= 0 ||
-      isNaN(bwDouble) || bwDouble <= 0 ||
-      isNaN(colorSingle) || colorSingle <= 0 ||
-      isNaN(colorDouble) || colorDouble <= 0
-    ) {
-      showError('All rates must be valid numbers greater than 0.');
-      setSaveRatesLoading(false);
-      return;
-    }
+    const bwSingle = parseRateInput(bwSingleRate);
+    const bwDouble = parseRateInput(bwDoubleRate);
+    const colorSingle = parseRateInput(colorSingleRate);
+    const colorDouble = parseRateInput(colorDoubleRate);
 
     try {
-      const updatedRates = await updateXeroxRates({
+      const res = await updateXeroxRates({
         bw_single: bwSingle,
         bw_double: bwDouble,
         color_single: colorSingle,
-        color_double: colorDouble
+        color_double: colorDouble,
+        show_xerox_prices: showXeroxPricesToggle
       }, token);
 
-      showSuccess('Xerox rates updated successfully! New rates are now active for all customers.');
+      showSuccess(
+        showXeroxPricesToggle
+          ? 'Xerox rates saved and visible to customers.'
+          : 'Xerox rates saved privately in admin panel (prices hidden from customers).'
+      );
       if (onXeroxRatesUpdated) {
-        onXeroxRatesUpdated(updatedRates);
+        onXeroxRatesUpdated(res.rates);
+      }
+      if (onXeroxVisibilityUpdated) {
+        onXeroxVisibilityUpdated(res.showPrices);
       }
     } catch (err: any) {
       showError(err.message || 'Failed to update Xerox rates.');
@@ -447,11 +468,75 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   };
 
+  const handleToggleXeroxVisibility = async (newVal: boolean) => {
+    if (!token) return;
+    setTogglingVisibility(true);
+    try {
+      const res = await updateXeroxVisibility(newVal, token);
+      setShowXeroxPricesToggle(res.showPrices);
+      if (onXeroxVisibilityUpdated) {
+        onXeroxVisibilityUpdated(res.showPrices);
+      }
+      showSuccess(res.message);
+    } catch (err: any) {
+      showError(err.message || 'Failed to update price visibility.');
+    } finally {
+      setTogglingVisibility(false);
+    }
+  };
+
   const handleResetDefaultRates = () => {
     setBwSingleRate('5');
     setBwDoubleRate('6');
     setColorSingleRate('10');
     setColorDoubleRate('20');
+  };
+
+  const handleUpdateSecurity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    if (!currentPwd) {
+      showError('Please enter your current password.');
+      return;
+    }
+    if (!newPwdVal && !newUsernameVal) {
+      showError('Please enter a new username or new password.');
+      return;
+    }
+    if (newPwdVal && newPwdVal.length < 6) {
+      showError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPwdVal && newPwdVal !== confirmNewPwdVal) {
+      showError('New password and confirmation do not match.');
+      return;
+    }
+
+    setSaveSecurityLoading(true);
+    setActionError(null);
+    try {
+      const res = await updateAdminCredentials({
+        currentPassword: currentPwd,
+        newUsername: newUsernameVal.trim() || undefined,
+        newPassword: newPwdVal || undefined
+      }, token);
+
+      if (res.token) {
+        setToken(res.token);
+        sessionStorage.setItem('admin_token', res.token);
+      }
+      if (res.username) {
+        setAdminUsername(res.username);
+      }
+      setCurrentPwd('');
+      setNewPwdVal('');
+      setConfirmNewPwdVal('');
+      showSuccess(res.message || 'Admin credentials updated successfully! Only you have access now.');
+    } catch (err: any) {
+      showError(err.message || 'Failed to update credentials.');
+    } finally {
+      setSaveSecurityLoading(false);
+    }
   };
 
   return (
@@ -627,6 +712,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Xerox Rates (₹)</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('security')}
+                  className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === 'security'
+                      ? 'bg-[#7B1123] text-white shadow-2xs'
+                      : 'bg-[#FAF7F2] text-slate-600 hover:bg-[#EFE8DC]'
+                  }`}
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Security &amp; Login</span>
                 </button>
               </div>
 
@@ -1088,7 +1185,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
               )}
 
-              {/* TAB 6: Xerox Rates (Fully Editable) */}
+              {/* TAB 6: Xerox Rates (Flexible Controls & Price Visibility) */}
               {activeTab === 'xerox_rates' && (
                 <form onSubmit={handleSaveRates} className="space-y-4">
                   <div className="bg-[#FFFDF9] border border-[#E7DCCE] p-4 sm:p-5 rounded-2xl space-y-4">
@@ -1102,7 +1199,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             Xerox &amp; Print Price Management
                           </h4>
                           <p className="text-xs text-slate-500">
-                            Update the per-page printing costs for your shop.
+                            Manage printing costs and customer price visibility.
                           </p>
                         </div>
                       </div>
@@ -1116,11 +1213,60 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       </button>
                     </div>
 
-                    <p className="text-xs text-slate-600 leading-relaxed bg-amber-50/70 border border-amber-200/80 p-3 rounded-xl">
-                      Enter the cost per page in Rupees (₹). When saved, customer order calculations, total estimates, and WhatsApp enquiry messages will reflect the updated rates immediately.
-                    </p>
+                    {/* Prominent Admin Toggle: Show Xerox Prices to Customers */}
+                    <div className={`p-4 rounded-xl border-2 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 ${
+                      showXeroxPricesToggle
+                        ? 'bg-emerald-50/90 border-emerald-300'
+                        : 'bg-amber-50/90 border-amber-300'
+                    }`}>
+                      <div className="flex items-start sm:items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
+                          showXeroxPricesToggle ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
+                        }`}>
+                          {showXeroxPricesToggle ? <CheckCircle2 className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h5 className="font-black text-xs sm:text-sm text-slate-900">
+                              Show Xerox Prices to Customers
+                            </h5>
+                            <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                              showXeroxPricesToggle
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-amber-100 text-amber-900 border border-amber-300'
+                            }`}>
+                              {showXeroxPricesToggle ? 'ON — Visible to Customers' : 'OFF — Hidden from Customers'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                            {showXeroxPricesToggle
+                              ? 'Configured rates are currently displayed on the customer website. Any service without a valid price remains visible with "Rate on request".'
+                              : 'All Xerox prices are completely hidden from the customer website. All Xerox services remain visible to customers, and you can edit prices privately.'}
+                          </p>
+                        </div>
+                      </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {/* Interactive Toggle Switch */}
+                      <button
+                        type="button"
+                        disabled={togglingVisibility}
+                        onClick={() => handleToggleXeroxVisibility(!showXeroxPricesToggle)}
+                        className={`relative inline-flex h-7 w-13 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#7B1123] focus:ring-offset-2 ${
+                          showXeroxPricesToggle ? 'bg-emerald-600' : 'bg-slate-300'
+                        }`}
+                        role="switch"
+                        aria-checked={showXeroxPricesToggle}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                            showXeroxPricesToggle ? 'translate-x-6' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
                       {/* 1. Black & White Single Side */}
                       <div className="p-3.5 bg-white border border-[#DACBB7] rounded-xl shadow-2xs space-y-2">
                         <div className="flex items-center justify-between">
@@ -1137,15 +1283,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             type="number"
                             step="0.5"
                             min="0.5"
-                            required
                             value={bwSingleRate}
                             onChange={(e) => setBwSingleRate(e.target.value)}
                             className="w-full pl-8 pr-3 py-2 text-sm font-bold bg-[#FAF7F2] border border-[#DACBB7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7B1123] focus:bg-white text-slate-900"
-                            placeholder="5"
+                            placeholder="e.g. 5 (leave blank to hide)"
                           />
                         </div>
                         <p className="text-[11px] text-slate-500">
-                          Current rate: <span className="font-bold text-[#7B1123]">₹{bwSingleRate || '0'}</span> per page
+                          {bwSingleRate ? (
+                            <>Saved rate: <span className="font-bold text-[#7B1123]">₹{bwSingleRate}</span> per page</>
+                          ) : (
+                            <span className="text-amber-700 font-medium italic">No price entered (hidden)</span>
+                          )}
                         </p>
                       </div>
 
@@ -1165,15 +1314,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             type="number"
                             step="0.5"
                             min="0.5"
-                            required
                             value={bwDoubleRate}
                             onChange={(e) => setBwDoubleRate(e.target.value)}
                             className="w-full pl-8 pr-3 py-2 text-sm font-bold bg-[#FAF7F2] border border-[#DACBB7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7B1123] focus:bg-white text-slate-900"
-                            placeholder="6"
+                            placeholder="e.g. 6 (leave blank to hide)"
                           />
                         </div>
                         <p className="text-[11px] text-slate-500">
-                          Current rate: <span className="font-bold text-[#7B1123]">₹{bwDoubleRate || '0'}</span> per page
+                          {bwDoubleRate ? (
+                            <>Saved rate: <span className="font-bold text-[#7B1123]">₹{bwDoubleRate}</span> per page</>
+                          ) : (
+                            <span className="text-amber-700 font-medium italic">No price entered (hidden)</span>
+                          )}
                         </p>
                       </div>
 
@@ -1193,15 +1345,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             type="number"
                             step="0.5"
                             min="0.5"
-                            required
                             value={colorSingleRate}
                             onChange={(e) => setColorSingleRate(e.target.value)}
                             className="w-full pl-8 pr-3 py-2 text-sm font-bold bg-[#FAF7F2] border border-[#DACBB7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7B1123] focus:bg-white text-slate-900"
-                            placeholder="10"
+                            placeholder="e.g. 10 (leave blank to hide)"
                           />
                         </div>
                         <p className="text-[11px] text-slate-500">
-                          Current rate: <span className="font-bold text-[#7B1123]">₹{colorSingleRate || '0'}</span> per page
+                          {colorSingleRate ? (
+                            <>Saved rate: <span className="font-bold text-[#7B1123]">₹{colorSingleRate}</span> per page</>
+                          ) : (
+                            <span className="text-amber-700 font-medium italic">No price entered (hidden)</span>
+                          )}
                         </p>
                       </div>
 
@@ -1221,46 +1376,131 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             type="number"
                             step="0.5"
                             min="0.5"
-                            required
                             value={colorDoubleRate}
                             onChange={(e) => setColorDoubleRate(e.target.value)}
                             className="w-full pl-8 pr-3 py-2 text-sm font-bold bg-[#FAF7F2] border border-[#DACBB7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7B1123] focus:bg-white text-slate-900"
-                            placeholder="20"
+                            placeholder="e.g. 20 (leave blank to hide)"
                           />
                         </div>
                         <p className="text-[11px] text-slate-500">
-                          Current rate: <span className="font-bold text-[#7B1123]">₹{colorDoubleRate || '0'}</span> per page
+                          {colorDoubleRate ? (
+                            <>Saved rate: <span className="font-bold text-[#7B1123]">₹{colorDoubleRate}</span> per page</>
+                          ) : (
+                            <span className="text-amber-700 font-medium italic">No price entered (hidden)</span>
+                          )}
                         </p>
                       </div>
                     </div>
 
-                    {/* Preview box */}
-                    <div className="bg-[#FAF7F2] border border-[#EADFCF] p-3 rounded-xl text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <span className="font-semibold">
-                        Preview calculation (10 pages):
-                      </span>
-                      <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
-                        <span className="bg-white px-2 py-0.5 rounded border border-[#DACBB7]">
-                          B&amp;W: ₹{(parseFloat(bwSingleRate) || 0) * 10}
-                        </span>
-                        <span className="bg-white px-2 py-0.5 rounded border border-[#DACBB7]">
-                          Colour: ₹{(parseFloat(colorSingleRate) || 0) * 10}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 flex items-center justify-between">
+                    <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <p className="text-[11px] text-slate-500">
-                        Saved instantly to the database.
+                        {showXeroxPricesToggle 
+                          ? 'Changes will be saved and published live to customers.'
+                          : 'Prices are preserved safely in the database and remain hidden from customers.'}
                       </p>
                       <button
                         type="submit"
                         disabled={saveRatesLoading}
-                        className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#15803D] hover:bg-[#166534] shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+                        className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#15803D] hover:bg-[#166534] shadow-xs cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 transition-colors"
                       >
                         <Save className="w-3.5 h-3.5" />
-                        <span>{saveRatesLoading ? 'Saving...' : 'Save Xerox Rates'}</span>
+                        <span>
+                          {saveRatesLoading 
+                            ? 'Saving...' 
+                            : showXeroxPricesToggle 
+                              ? 'Save Xerox Rates (Public)' 
+                              : 'Save Rates Privately (Hidden)'}
+                        </span>
                       </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+
+              {/* TAB 7: Security & Credentials */}
+              {activeTab === 'security' && (
+                <form onSubmit={handleUpdateSecurity} className="space-y-4">
+                  <div className="bg-[#FFFDF9] border border-[#E7DCCE] p-4 rounded-xl">
+                    <div className="flex items-center gap-2 mb-1">
+                      <ShieldAlert className="w-4 h-4 text-[#7B1123]" />
+                      <h4 className="font-extrabold text-sm text-slate-800">
+                        Admin Portal Security &amp; Credentials
+                      </h4>
+                    </div>
+                    <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+                      Update your Admin credentials so that <strong>only you</strong> can access this shop management portal. Keep your password secret and do not share it with anyone.
+                    </p>
+
+                    <div className="space-y-3.5 max-w-md">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Current Password <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          value={currentPwd}
+                          onChange={(e) => setCurrentPwd(e.target.value)}
+                          placeholder="Enter your current password"
+                          className="w-full px-3 py-2 text-xs bg-white border border-[#DACBB7] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7B1123] text-slate-800"
+                        />
+                      </div>
+
+                      <div className="pt-2 border-t border-[#EFE8DC]">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          New Admin Username (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={newUsernameVal}
+                          onChange={(e) => setNewUsernameVal(e.target.value)}
+                          placeholder={adminUsername || 'e.g. your_custom_username'}
+                          className="w-full px-3 py-2 text-xs bg-white border border-[#DACBB7] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7B1123] text-slate-800"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Leave blank to keep your current username ({adminUsername || 'admin'}).
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          New Secret Password
+                        </label>
+                        <input
+                          type="password"
+                          value={newPwdVal}
+                          onChange={(e) => setNewPwdVal(e.target.value)}
+                          placeholder="At least 6 characters"
+                          className="w-full px-3 py-2 text-xs bg-white border border-[#DACBB7] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7B1123] text-slate-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Confirm New Password
+                        </label>
+                        <input
+                          type="password"
+                          value={confirmNewPwdVal}
+                          onChange={(e) => setConfirmNewPwdVal(e.target.value)}
+                          placeholder="Re-enter new password"
+                          className="w-full px-3 py-2 text-xs bg-white border border-[#DACBB7] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7B1123] text-slate-800"
+                        />
+                      </div>
+
+                      <div className="pt-2 flex items-center justify-between">
+                        <p className="text-[11px] text-slate-500">
+                          Hashed securely with bcrypt before saving.
+                        </p>
+                        <button
+                          type="submit"
+                          disabled={saveSecurityLoading}
+                          className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#7B1123] hover:bg-[#5C0B18] shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                          <span>{saveSecurityLoading ? 'Updating...' : 'Update Credentials'}</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </form>

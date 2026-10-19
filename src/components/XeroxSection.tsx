@@ -1,41 +1,59 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Check, Plus, Minus, Trash2, Send, FileText, Sparkles, Printer } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext.tsx';
-import { buildWhatsAppUrl } from '../utils/whatsapp.ts';
+import { formatXeroxWhatsAppMessage, buildWhatsAppUrl, XeroxItemRequest } from '../utils/whatsapp.ts';
+import { XeroxRates } from '../services/api.ts';
 
 interface XeroxRateOption {
   id: 'bw_single' | 'bw_double' | 'color_single' | 'color_double';
   nameKey: 'bwSingleSide' | 'bwDoubleSide' | 'colorSingleSide' | 'colorDoubleSide';
   englishLabel: string;
+  price: number | null;
   isColor: boolean;
   isDouble: boolean;
 }
 
 interface XeroxSectionProps {
   whatsappNumber: string;
+  rates?: XeroxRates;
+  showPrices?: boolean;
   onBackToHome: () => void;
   onOpenReview: (summary: {
     title: string;
-    items: Array<{ name: string; quantity: number }>;
-    totalAmount?: number;
+    items: Array<{ name: string; quantity: number; price?: number | null; total?: number }>;
+    totalAmount: number;
     notes?: string;
+    showPrices?: boolean;
     onConfirmWhatsApp: (customerName: string) => void;
   }) => void;
 }
 
 export const XeroxSection: React.FC<XeroxSectionProps> = ({
   whatsappNumber,
+  rates,
+  showPrices = false,
   onBackToHome,
   onOpenReview
 }) => {
   const { t } = useLanguage();
 
+  const effectiveRates: XeroxRates = rates || {
+    bw_single: 5,
+    bw_double: 6,
+    color_single: 10,
+    color_double: 20
+  };
+
   const xeroxOptions: XeroxRateOption[] = [
-    { id: 'bw_single', nameKey: 'bwSingleSide', englishLabel: 'Black & White — Single Side', isColor: false, isDouble: false },
-    { id: 'bw_double', nameKey: 'bwDoubleSide', englishLabel: 'Black & White — Double Side', isColor: false, isDouble: true },
-    { id: 'color_single', nameKey: 'colorSingleSide', englishLabel: 'Colour — Single Side', isColor: true, isDouble: false },
-    { id: 'color_double', nameKey: 'colorDoubleSide', englishLabel: 'Colour — Double Side', isColor: true, isDouble: true },
+    { id: 'bw_single', nameKey: 'bwSingleSide', englishLabel: 'Black & White — Single Side', price: effectiveRates.bw_single, isColor: false, isDouble: false },
+    { id: 'bw_double', nameKey: 'bwDoubleSide', englishLabel: 'Black & White — Double Side', price: effectiveRates.bw_double, isColor: false, isDouble: true },
+    { id: 'color_single', nameKey: 'colorSingleSide', englishLabel: 'Colour — Single Side', price: effectiveRates.color_single, isColor: true, isDouble: false },
+    { id: 'color_double', nameKey: 'colorDoubleSide', englishLabel: 'Colour — Double Side', price: effectiveRates.color_double, isColor: true, isDouble: true },
   ];
+
+  const isOptionPriceVisible = (optPrice: number | null): boolean => {
+    return Boolean(showPrices && optPrice !== null && optPrice !== undefined && optPrice > 0);
+  };
 
   const [selected, setSelected] = useState<Record<string, boolean>>({
     bw_single: false,
@@ -93,14 +111,21 @@ export const XeroxSection: React.FC<XeroxSectionProps> = ({
     setErrorMessage(null);
   };
 
-  const selectedItems = xeroxOptions
+  const selectedItems: (XeroxItemRequest & { englishLabel: string })[] = xeroxOptions
     .filter(opt => selected[opt.id])
-    .map(opt => ({
-      label: t[opt.nameKey],
-      englishLabel: opt.englishLabel,
-      quantity: quantities[opt.id] || 1,
-    }));
+    .map(opt => {
+      const hasValidPrice = isOptionPriceVisible(opt.price);
+      const qty = quantities[opt.id] || 1;
+      return {
+        label: t[opt.nameKey],
+        englishLabel: opt.englishLabel,
+        pricePerPage: hasValidPrice ? opt.price : null,
+        quantity: qty,
+        total: hasValidPrice && opt.price ? (opt.price * qty) : null
+      };
+    });
 
+  const estimatedTotal = selectedItems.reduce((sum, item) => sum + (item.total || 0), 0);
   const hasSelection = selectedItems.length > 0;
 
   const handleReviewClick = () => {
@@ -119,20 +144,27 @@ export const XeroxSection: React.FC<XeroxSectionProps> = ({
       items: selectedItems.map(item => ({
         name: item.label,
         quantity: item.quantity,
+        price: item.pricePerPage,
+        total: item.total || undefined
       })),
+      totalAmount: showPrices ? estimatedTotal : 0,
       notes: customerNote,
+      showPrices: Boolean(showPrices),
       onConfirmWhatsApp: (customerName: string) => {
-        const itemLines = selectedItems.map(item => `- ${item.englishLabel}: ${item.quantity} ${item.quantity === 1 ? 'page' : 'pages'}`).join('\\n');
-        const message = [
-          'Hello, I would like to enquire about Xerox service.',
-          `Name: ${customerName}`,
-          '',
-          'Selected services:',
-          itemLines,
-          customerNote.trim() ? `\\nNote: ${customerNote.trim()}` : '',
-          '',
-          'Please confirm the details. Thank you.'
-        ].filter(Boolean).join('\\n');
+        const englishItems: XeroxItemRequest[] = selectedItems.map(it => ({
+          label: it.englishLabel,
+          pricePerPage: it.pricePerPage,
+          quantity: it.quantity,
+          total: it.total
+        }));
+
+        const message = formatXeroxWhatsAppMessage(
+          customerName,
+          englishItems,
+          estimatedTotal,
+          customerNote,
+          Boolean(showPrices)
+        );
 
         const { url, error } = buildWhatsAppUrl(whatsappNumber, message);
         if (error || !url) {
@@ -217,6 +249,17 @@ export const XeroxSection: React.FC<XeroxSectionProps> = ({
                   </button>
                 </div>
 
+                {isOptionPriceVisible(opt.price) ? (
+                  <div className="mt-4 flex items-baseline gap-1">
+                    <span className="text-3xl font-black text-[#7B1123]">₹{opt.price}</span>
+                    <span className="text-xs text-slate-500 font-bold">/{t.perPage}</span>
+                  </div>
+                ) : (
+                  <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF5EB] border border-[#D4AF37]/50 text-[#7B1123] text-xs font-bold shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    <span>Rate upon request</span>
+                  </div>
+                )}
               </div>
 
               {/* Quantity Controls */}
@@ -249,6 +292,15 @@ export const XeroxSection: React.FC<XeroxSectionProps> = ({
                         </button>
                       </div>
 
+                      {isOptionPriceVisible(opt.price) ? (
+                        <span className="text-sm font-black text-[#15803D]">
+                          = ₹{(opt.price || 0) * qty}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-semibold text-slate-500">
+                          Rate on request
+                        </span>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -307,13 +359,36 @@ export const XeroxSection: React.FC<XeroxSectionProps> = ({
 
         {hasSelection ? (
           <div className="space-y-2.5 mb-5">
-            {selectedItems.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between text-xs sm:text-sm py-1.5 border-b border-dashed border-slate-200">
-                <span className="font-bold text-slate-800">
-                  {item.label} ({item.quantity} {item.quantity === 1 ? 'page' : 'pages'})
+            {selectedItems.map((item, idx) => {
+              const hasValidPrice = Boolean(showPrices && item.total && item.total > 0);
+              return (
+                <div key={idx} className="flex items-center justify-between text-xs sm:text-sm py-1.5 border-b border-dashed border-slate-200">
+                  <span className="font-bold text-slate-800">
+                    {item.label} ({item.quantity} {item.quantity === 1 ? 'page' : 'pages'})
+                  </span>
+                  <span className="font-extrabold text-slate-900">
+                    {hasValidPrice ? `₹${item.total}` : <span className="text-slate-500 font-medium text-xs">Rate on request</span>}
+                  </span>
+                </div>
+              );
+            })}
+
+            <div className="pt-3 border-t-2 border-[#D4AF37]/50 flex items-center justify-between">
+              <span className="font-extrabold text-sm sm:text-base text-slate-800">{t.estimatedTotal}:</span>
+              {Boolean(showPrices && estimatedTotal > 0) ? (
+                <span className="text-2xl font-black text-[#7B1123]">₹{estimatedTotal}</span>
+              ) : (
+                <span className="text-xs sm:text-sm font-bold text-[#7B1123] bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                  To be confirmed by shop
                 </span>
-              </div>
-            ))}
+              )}
+            </div>
+
+            {Boolean(showPrices && estimatedTotal > 0) && (
+              <p className="text-[11px] text-slate-500 leading-normal">
+                {t.estimateDisclaimer}
+              </p>
+            )}
           </div>
         ) : (
           <div className="py-6 text-center text-slate-400 text-xs font-medium">

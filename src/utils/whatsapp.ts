@@ -1,49 +1,36 @@
-
 /**
- * Build a WhatsApp click-to-chat URL.
- * Converts literal \n text into actual line breaks.
+ * Formats a clean WhatsApp click-to-chat URL:
+ * https://wa.me/<CLEAN_NUMBER>?text=<ENCODED_MESSAGE>
  */
-export function buildWhatsAppUrl(
-  rawPhone: string,
-  messageText: string
-): { url: string | null; error?: string } {
+export function buildWhatsAppUrl(rawPhone: string, messageText: string): { url: string | null; error?: string } {
   if (!rawPhone || !rawPhone.trim()) {
     return {
       url: null,
-      error: "The shop WhatsApp number has not been configured yet.",
+      error: 'The shop WhatsApp number has not been configured yet. Please check back shortly.'
     };
   }
 
-  // Keep digits only. Include the country code, e.g. 91 for India.
-  const cleanPhone = rawPhone.replace(/\D/g, "");
+  // Sanitize: strip spaces, dashes, brackets, plus sign
+  const cleanPhone = rawPhone.replace(/[\s\-\(\)\+]/g, '');
 
   if (!/^\d{10,15}$/.test(cleanPhone)) {
     return {
       url: null,
-      error: "Invalid WhatsApp number. Include the country code.",
+      error: 'Invalid shop WhatsApp number format. Please ensure it has a valid country code.'
     };
   }
 
-  // Convert escaped line breaks into real line breaks.
-  const cleanMessage = messageText
-    .replace(/\\r\\n/g, "\n")
-    .replace(/\\n/g, "\n")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .trim();
-
+  const encodedMessage = encodeURIComponent(messageText.trim());
   return {
-    url: `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-      cleanMessage
-    )}`,
+    url: `https://wa.me/${cleanPhone}?text=${encodedMessage}`
   };
 }
 
 export interface XeroxItemRequest {
   label: string;
-  pricePerPage?: number;
+  pricePerPage?: number | null;
   quantity: number;
-  total?: number;
+  total?: number | null;
 }
 
 export interface StationeryRequestItem {
@@ -57,42 +44,48 @@ export interface StationeryRequestItem {
 }
 
 /**
- * Xerox enquiry message.
- * Prices and totals are intentionally excluded.
+ * Standard English WhatsApp enquiry message for Xerox requests
+ * Always in English per requirement!
  */
 export function formatXeroxWhatsAppMessage(
   customerName: string,
   items: XeroxItemRequest[],
-  _estimatedTotal: number,
-  customerNote?: string
+  estimatedTotal?: number | null,
+  customerNote?: string,
+  showPrices?: boolean
 ): string {
-  const name = customerName.trim() || "Customer";
+  let msg = `Hello Sri Durga Mata Stationery,\n\n`;
+  msg += `My name is ${customerName.trim()}.\n\n`;
+  msg += `I would like to enquire about the following items:\n\n`;
 
-  const lines: string[] = [
-    "Hello Sree Durga Mata Stationery!",
-    "",
-    `Customer Name: ${name}`,
-    "",
-    "Xerox Services Requested:",
-  ];
+  const pricesVisible = Boolean(showPrices);
 
-  items.forEach((item, index) => {
-    lines.push(`${index + 1}. ${item.label}`);
-    lines.push(`   Quantity: ${item.quantity} page${item.quantity === 1 ? "" : "s"}`);
+  items.forEach((item, idx) => {
+    let line = `${idx + 1}. ${item.label} — Quantity: ${item.quantity}`;
+    if (pricesVisible && item.pricePerPage && item.pricePerPage > 0) {
+      const lineTotal = item.total && item.total > 0 ? item.total : (item.pricePerPage * item.quantity);
+      line += ` — Unit Price: ₹${item.pricePerPage} — Subtotal: ₹${lineTotal}`;
+    }
+    msg += `${line}\n`;
   });
 
-  if (customerNote?.trim()) {
-    lines.push("", `Additional Notes: ${customerNote.trim()}`);
+  if (pricesVisible && estimatedTotal && estimatedTotal > 0) {
+    msg += `\nEstimated Total: ₹${estimatedTotal}\n`;
+  } else {
+    msg += `\nEstimated Total: To be confirmed by shop\n`;
   }
 
-  lines.push("", "Please confirm the details. Thank you!");
+  if (customerNote && customerNote.trim()) {
+    msg += `\nAdditional Notes: ${customerNote.trim()}\n`;
+  }
 
-  return lines.join("\n");
+  msg += `\nPlease confirm the availability and final amount. Thank you.`;
+  return msg;
 }
 
 /**
- * Stationery enquiry message.
- * Keeps item prices and estimated totals.
+ * Standard English WhatsApp enquiry message for Stationery requests
+ * Always in English per requirement!
  */
 export function formatStationeryWhatsAppMessage(
   customerName: string,
@@ -101,67 +94,48 @@ export function formatStationeryWhatsAppMessage(
   hasUnpricedItems: boolean,
   customerNote?: string
 ): string {
-  const name = customerName.trim() || "Customer";
+  let msg = `Hello Sree Durga Mata Stationery,\n\n`;
+  msg += `My name is ${customerName.trim()}.\n\n`;
+  msg += `I would like to enquire about the following items:\n\n`;
 
-  const lines: string[] = [
-    "Hello Sree Durga Mata Stationery!",
-    "",
-    `Customer Name: ${name}`,
-    "",
-    "I would like to enquire about the following items:",
-    "",
-  ];
-
-  items.forEach((item, index) => {
-    let itemLine = `${index + 1}. ${item.name}`;
-
+  items.forEach((item, idx) => {
+    let itemLine = `${idx + 1}. ${item.name}`;
     if (item.isCustom) {
-      itemLine += " (Custom Item)";
+      itemLine += ` (Custom Item)`;
     }
-
     itemLine += ` — Quantity: ${item.quantity}`;
 
     if (item.price !== null && item.price !== undefined) {
-      itemLine += ` — Unit Price: ₹${item.price}`;
-      itemLine += ` — Subtotal: ₹${item.price * item.quantity}`;
+      itemLine += ` — Unit Price: ₹${item.price} — Subtotal: ₹${item.price * item.quantity}`;
     } else {
-      itemLine += " — Unit Price: Price to be confirmed";
-      itemLine += " — Subtotal: To be confirmed";
+      itemLine += ` — Unit Price: Price to be confirmed — Subtotal: To be confirmed`;
     }
 
     if (item.offerNote) {
       itemLine += ` [Offer: ${item.offerNote}]`;
     }
 
-    if (item.notes?.trim()) {
+    if (item.notes && item.notes.trim()) {
       itemLine += ` (Note: ${item.notes.trim()})`;
     }
 
-    lines.push(itemLine);
+    msg += `${itemLine}\n`;
   });
 
-  lines.push("");
-
   if (estimatedKnownTotal > 0) {
-    let totalLine = `Estimated Total: ₹${estimatedKnownTotal}`;
-
+    msg += `\nEstimated Total: ₹${estimatedKnownTotal}`;
     if (hasUnpricedItems) {
-      totalLine += " (plus items with price to be confirmed)";
+      msg += ` (plus items with price to be confirmed)`;
     }
-
-    lines.push(totalLine);
+    msg += `\n`;
   } else {
-    lines.push("Estimated Total: To be confirmed by shop");
+    msg += `\nEstimated Total: To be confirmed by shop\n`;
   }
 
-  if (customerNote?.trim()) {
-    lines.push("", `Additional Notes: ${customerNote.trim()}`);
+  if (customerNote && customerNote.trim()) {
+    msg += `\nAdditional Notes: ${customerNote.trim()}\n`;
   }
 
-  lines.push(
-    "",
-    "Please confirm the availability and final amount. Thank you!"
-  );
-
-  return lines.join("\n");
+  msg += `\nPlease confirm the availability and final amount. Thank you.`;
+  return msg;
 }

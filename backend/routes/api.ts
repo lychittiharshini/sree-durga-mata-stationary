@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { getPublicSettings, getXeroxRates, updateWhatsAppNumber, updateXeroxRates } from '../controllers/settingsController.ts';
-import { login, logout, getCurrentAdmin } from '../controllers/authController.ts';
+import { getPublicSettings, getXeroxRates, updateWhatsAppNumber, updateXeroxRates, updateXeroxVisibility } from '../controllers/settingsController.ts';
+import { login, logout, getCurrentAdmin, updateCredentials } from '../controllers/authController.ts';
 import { getProducts, getAllProductsAdmin, createProduct, updateProduct, deleteProduct } from '../controllers/productsController.ts';
 import { getOffers, getAllOffersAdmin, createOffer, updateOffer, deleteOffer } from '../controllers/offersController.ts';
 import { getShopImages, addShopImage, deleteShopImage } from '../controllers/shopImagesController.ts';
@@ -24,6 +24,7 @@ router.get('/additional-services', getAdditionalServices);
 router.post('/auth/login', loginRateLimiter, login);
 router.post('/auth/logout', logout);
 router.get('/auth/me', requireAdminAuth, getCurrentAdmin);
+router.put('/admin/change-credentials', requireAdminAuth, updateCredentials);
 
 // ==========================================
 // ADMIN PROTECTED ROUTES
@@ -32,6 +33,7 @@ router.get('/auth/me', requireAdminAuth, getCurrentAdmin);
 // Shop WhatsApp number & Xerox rates
 router.put('/settings/whatsapp', requireAdminAuth, updateWhatsAppNumber);
 router.put('/settings/xerox-rates', requireAdminAuth, updateXeroxRates);
+router.put('/settings/xerox-visibility', requireAdminAuth, updateXeroxVisibility);
 
 // Products management
 router.get('/admin/products', requireAdminAuth, getAllProductsAdmin);

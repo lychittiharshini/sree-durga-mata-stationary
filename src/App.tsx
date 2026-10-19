@@ -11,6 +11,7 @@ import { ServicesOverview } from './components/ServicesOverview.tsx';
 import { XeroxSection } from './components/XeroxSection.tsx';
 import { StationerySection } from './components/StationerySection.tsx';
 import { OptionalPublishedContent } from './components/OptionalPublishedContent.tsx';
+import { ShopLocation } from './components/ShopLocation.tsx';
 import { ReviewModal, ReviewModalData } from './components/ReviewModal.tsx';
 import { AdminPanelModal } from './components/AdminPanelModal.tsx';
 import { Footer } from './components/Footer.tsx';
@@ -76,6 +77,9 @@ function MainContent() {
 
             {/* 4. Optional Published Content (Admin Offers, Images, Extra Services ONLY if published) */}
             <OptionalPublishedContent />
+
+            {/* 5. Official Shop Location, Google Maps Embed & Get Directions */}
+            <ShopLocation whatsappNumber={whatsappNumber} />
           </div>
         )}
 

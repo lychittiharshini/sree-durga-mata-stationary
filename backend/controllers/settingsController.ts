@@ -30,40 +30,57 @@ export function sanitizeWhatsAppNumber(rawInput: string): { valid: boolean; sani
 }
 
 export interface XeroxRates {
-  bw_single: number;
-  bw_double: number;
-  color_single: number;
-  color_double: number;
+  bw_single: number | null;
+  bw_double: number | null;
+  color_single: number | null;
+  color_double: number | null;
 }
 
-export async function fetchCurrentXeroxRates(): Promise<XeroxRates> {
+export async function fetchCurrentXeroxRates(): Promise<{ rates: XeroxRates; showPrices: boolean }> {
+  const showPricesStr = await db.getSetting('show_xerox_prices');
+  // Default is false (hidden from customers by default) per requirement
+  const showPrices = showPricesStr === 'true';
+
+  const parseRate = (val: string | null, fallback: number | null): number | null => {
+    if (val === null || val === undefined) return fallback;
+    if (val.trim() === '') return null;
+    const num = Number(val);
+    if (isNaN(num) || num <= 0) return null;
+    return num;
+  };
+
   const bwSingleStr = await db.getSetting('xerox_bw_single');
   const bwDoubleStr = await db.getSetting('xerox_bw_double');
   const colorSingleStr = await db.getSetting('xerox_color_single');
   const colorDoubleStr = await db.getSetting('xerox_color_double');
 
-  return {
-    bw_single: bwSingleStr ? Number(bwSingleStr) : 5,
-    bw_double: bwDoubleStr ? Number(bwDoubleStr) : 6,
-    color_single: colorSingleStr ? Number(colorSingleStr) : 10,
-    color_double: colorDoubleStr ? Number(colorDoubleStr) : 20,
+  const rates: XeroxRates = {
+    bw_single: parseRate(bwSingleStr, 5),
+    bw_double: parseRate(bwDoubleStr, 6),
+    color_single: parseRate(colorSingleStr, 10),
+    color_double: parseRate(colorDoubleStr, 20),
   };
+
+  return { rates, showPrices };
 }
 
 // GET /api/settings/public
 export async function getPublicSettings(_req: any, res: Response) {
   try {
     const whatsapp = await db.getSetting('whatsapp_number');
-    const shopName = (await db.getSetting('shop_name')) || 'Sree Durga Mata Stationery';
+    const shopName = (await db.getSetting('shop_name')) || 'Sri Durga Mata Stationery Book Stall and Fancy Items';
     const shopSubtitle = (await db.getSetting('shop_subtitle')) || 'BOOK STALL & FANCY ITEMS';
-    const xeroxRates = await fetchCurrentXeroxRates();
+    const shopAddress = (await db.getSetting('shop_address')) || 'H. No. 69, Ilapur Rd, Durgamata Colony, Tanda, Hyderabad, Telangana 502032, India';
+    const { rates, showPrices } = await fetchCurrentXeroxRates();
 
     return res.json({
       whatsappNumber: whatsapp || '',
       isConfigured: Boolean(whatsapp && whatsapp.trim().length > 0),
       shopName,
       shopSubtitle,
-      xeroxRates
+      shopAddress,
+      showXeroxPrices: showPrices,
+      xeroxRates: rates
     });
   } catch (err: any) {
     console.error('Error in getPublicSettings:', err);
@@ -71,11 +88,11 @@ export async function getPublicSettings(_req: any, res: Response) {
   }
 }
 
-// GET /api/settings/xerox-rates (Public)
+// GET /api/settings/xerox-rates (Public / Customer)
 export async function getXeroxRates(_req: any, res: Response) {
   try {
-    const rates = await fetchCurrentXeroxRates();
-    return res.json({ success: true, rates });
+    const { rates, showPrices } = await fetchCurrentXeroxRates();
+    return res.json({ success: true, rates, showPrices });
   } catch (err: any) {
     console.error('Error in getXeroxRates:', err);
     return res.status(500).json({ error: 'Failed to load Xerox rates.' });
@@ -105,44 +122,69 @@ export async function updateWhatsAppNumber(req: AuthenticatedRequest, res: Respo
   }
 }
 
-// PUT /api/settings/xerox-rates (ADMIN ONLY)
+// PUT /api/settings/xerox-rates (ADMIN ONLY: Updates rates & optional visibility toggle)
 export async function updateXeroxRates(req: AuthenticatedRequest, res: Response) {
   try {
-    const { bw_single, bw_double, color_single, color_double } = req.body;
+    const { bw_single, bw_double, color_single, color_double, show_xerox_prices } = req.body;
 
-    const parsedBwSingle = Number(bw_single);
-    const parsedBwDouble = Number(bw_double);
-    const parsedColorSingle = Number(color_single);
-    const parsedColorDouble = Number(color_double);
-
-    if (
-      isNaN(parsedBwSingle) || parsedBwSingle <= 0 ||
-      isNaN(parsedBwDouble) || parsedBwDouble <= 0 ||
-      isNaN(parsedColorSingle) || parsedColorSingle <= 0 ||
-      isNaN(parsedColorDouble) || parsedColorDouble <= 0
-    ) {
-      return res.status(400).json({ error: 'All Xerox rates must be valid positive numbers.' });
+    if (show_xerox_prices !== undefined) {
+      await db.setSetting('show_xerox_prices', String(Boolean(show_xerox_prices)));
     }
 
-    await db.setSetting('xerox_bw_single', String(parsedBwSingle));
-    await db.setSetting('xerox_bw_double', String(parsedBwDouble));
-    await db.setSetting('xerox_color_single', String(parsedColorSingle));
-    await db.setSetting('xerox_color_double', String(parsedColorDouble));
-
-    const updatedRates: XeroxRates = {
-      bw_single: parsedBwSingle,
-      bw_double: parsedBwDouble,
-      color_single: parsedColorSingle,
-      color_double: parsedColorDouble
+    const sanitizeRateInput = async (key: string, val: any) => {
+      if (val === undefined) return;
+      if (val === null || val === '') {
+        await db.setSetting(key, '');
+        return;
+      }
+      const num = Number(val);
+      if (!isNaN(num) && num > 0) {
+        await db.setSetting(key, String(num));
+      } else {
+        await db.setSetting(key, '');
+      }
     };
+
+    if (bw_single !== undefined) await sanitizeRateInput('xerox_bw_single', bw_single);
+    if (bw_double !== undefined) await sanitizeRateInput('xerox_bw_double', bw_double);
+    if (color_single !== undefined) await sanitizeRateInput('xerox_color_single', color_single);
+    if (color_double !== undefined) await sanitizeRateInput('xerox_color_double', color_double);
+
+    const { rates, showPrices } = await fetchCurrentXeroxRates();
 
     return res.json({
       success: true,
-      message: 'Xerox rates updated successfully.',
-      rates: updatedRates
+      message: 'Xerox pricing settings updated successfully.',
+      rates,
+      showPrices
     });
   } catch (err: any) {
     console.error('Error in updateXeroxRates:', err);
     return res.status(500).json({ error: 'Server error while updating Xerox rates.' });
+  }
+}
+
+// PUT /api/settings/xerox-visibility (ADMIN ONLY: Quick toggle for visibility)
+export async function updateXeroxVisibility(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { showPrices } = req.body;
+    if (showPrices === undefined) {
+      return res.status(400).json({ error: 'showPrices boolean is required.' });
+    }
+    const boolVal = Boolean(showPrices);
+    await db.setSetting('show_xerox_prices', String(boolVal));
+
+    const current = await fetchCurrentXeroxRates();
+    return res.json({
+      success: true,
+      showPrices: boolVal,
+      rates: current.rates,
+      message: boolVal 
+        ? 'Xerox prices are now visible to customers.'
+        : 'Xerox prices are now hidden from customers.'
+    });
+  } catch (err: any) {
+    console.error('Error in updateXeroxVisibility:', err);
+    return res.status(500).json({ error: 'Server error while toggling Xerox price visibility.' });
   }
 }

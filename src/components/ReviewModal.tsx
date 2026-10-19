@@ -15,6 +15,7 @@ export interface ReviewModalData {
   items: ReviewItem[];
   totalAmount: number;
   notes?: string;
+  showPrices?: boolean;
   onConfirmWhatsApp: (customerName: string) => void;
 }
 
@@ -113,13 +114,16 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({ data, onClose }) => {
                     <span className="font-bold text-slate-800 block">{item.name}</span>
                     <span className="text-slate-500 text-[11px]">
                       Qty: <strong className="text-slate-700">{item.quantity}</strong>
-                      {item.price !== undefined && item.price !== null && (
+                      {Boolean(data.showPrices !== false && item.price !== undefined && item.price !== null && item.price > 0) && (
                         <span> &bull; ₹{item.price} each</span>
                       )}
                     </span>
                   </div>
                   <div className="font-bold text-slate-900 shrink-0">
-                    {item.total !== undefined ? `₹${item.total}` : 'Confirm with shop'}
+                    {Boolean(data.showPrices !== false && item.total !== undefined && item.total !== null && item.total > 0)
+                      ? `₹${item.total}`
+                      : <span className="text-[11px] text-slate-500 font-medium">Rate on request</span>
+                    }
                   </div>
                 </div>
               ))}
@@ -138,7 +142,10 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({ data, onClose }) => {
           <div className="p-3.5 bg-[#FFFDF9] rounded-xl border border-[#EADFCF] flex items-center justify-between">
             <span className="font-extrabold text-xs text-slate-700">{t.subtotalLabel}:</span>
             <span className="text-lg font-black text-[#7B1123]">
-              {data.totalAmount > 0 ? `₹${data.totalAmount}` : 'Price to be confirmed'}
+              {Boolean(data.showPrices !== false && data.totalAmount > 0)
+                ? `₹${data.totalAmount}`
+                : 'To be confirmed by shop'
+              }
             </span>
           </div>
 

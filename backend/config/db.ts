@@ -6,7 +6,7 @@ import path from 'path';
 const { Pool } = pg;
 
 const DEFAULT_ADMIN_USER = process.env.ADMIN_USERNAME || 'admin';
-const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'DurgaMata@2026';
+const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const DEFAULT_WHATSAPP = process.env.DEFAULT_WHATSAPP_NUMBER || '919876543210';
 
 export interface ProductRecord {
@@ -94,18 +94,25 @@ function loadLocalStore() {
     console.warn('[DB] Could not read local store file, starting fresh', err);
   }
 
-  if (!memStore.admins || memStore.admins.length === 0) {
+  if (DEFAULT_ADMIN_PASSWORD) {
     const salt = bcrypt.genSaltSync(10);
     const hash = bcrypt.hashSync(DEFAULT_ADMIN_PASSWORD, salt);
-    memStore.admins = [
-      {
-        id: 1,
-        username: DEFAULT_ADMIN_USER,
-        password_hash: hash,
-        last_login: new Date()
-      }
-    ];
-    saveLocalStore();
+    if (!memStore.admins || memStore.admins.length === 0) {
+      memStore.admins = [
+        {
+          id: 1,
+          username: DEFAULT_ADMIN_USER,
+          password_hash: hash,
+          last_login: new Date()
+        }
+      ];
+      saveLocalStore();
+    } else {
+      // If the owner configured ADMIN_PASSWORD in environment, sync it
+      memStore.admins[0].username = DEFAULT_ADMIN_USER;
+      memStore.admins[0].password_hash = hash;
+      saveLocalStore();
+    }
   }
 
   if (!memStore.settings || !memStore.settings.whatsapp_number) {
@@ -216,13 +223,15 @@ export async function initDb() {
           ON CONFLICT (setting_key) DO NOTHING;
         `, [DEFAULT_WHATSAPP]);
 
-        const salt = bcrypt.genSaltSync(10);
-        const hash = bcrypt.hashSync(DEFAULT_ADMIN_PASSWORD, salt);
-        await client.query(`
-          INSERT INTO admin_users (username, password_hash)
-          VALUES ($1, $2)
-          ON CONFLICT (username) DO NOTHING;
-        `, [DEFAULT_ADMIN_USER, hash]);
+        if (DEFAULT_ADMIN_PASSWORD) {
+          const salt = bcrypt.genSaltSync(10);
+          const hash = bcrypt.hashSync(DEFAULT_ADMIN_PASSWORD, salt);
+          await client.query(`
+            INSERT INTO admin_users (username, password_hash)
+            VALUES ($1, $2)
+            ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+          `, [DEFAULT_ADMIN_USER, hash]);
+        }
 
         usePostgres = true;
         console.log('[DB] Successfully connected to PostgreSQL instance');
@@ -281,6 +290,48 @@ export const db = {
       }
     }
     return memStore.admins.find(a => a.username.toLowerCase() === username.toLowerCase()) || null;
+  },
+
+  async findAdminById(id: number) {
+    if (usePostgres && pool) {
+      try {
+        const res = await pool.query('SELECT id, username, password_hash FROM admin_users WHERE id = $1', [id]);
+        if (res.rows.length > 0) return res.rows[0];
+        return null;
+      } catch (err) {
+        console.error('[DB] Error finding admin by ID in PG:', err);
+      }
+    }
+    return memStore.admins.find(a => a.id === id) || null;
+  },
+
+  async updateAdminCredentials(id: number, username: string, passwordHash?: string) {
+    if (usePostgres && pool) {
+      try {
+        if (passwordHash) {
+          await pool.query(
+            'UPDATE admin_users SET username = $1, password_hash = $2 WHERE id = $3',
+            [username, passwordHash, id]
+          );
+        } else {
+          await pool.query(
+            'UPDATE admin_users SET username = $1 WHERE id = $2',
+            [username, id]
+          );
+        }
+      } catch (err) {
+        console.error('[DB] Error updating admin credentials in PG:', err);
+        throw err;
+      }
+    }
+    const admin = memStore.admins.find(a => a.id === id);
+    if (admin) {
+      admin.username = username;
+      if (passwordHash) {
+        admin.password_hash = passwordHash;
+      }
+      saveLocalStore();
+    }
   },
 
   async updateAdminLastLogin(id: number) {
