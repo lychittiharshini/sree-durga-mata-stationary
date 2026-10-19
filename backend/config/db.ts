@@ -5,9 +5,9 @@ import path from 'path';
 
 const { Pool } = pg;
 
-const DEFAULT_ADMIN_USER = process.env.ADMIN_USERNAME || 'admin';
-const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
-const DEFAULT_WHATSAPP = process.env.DEFAULT_WHATSAPP_NUMBER || '919876543210';
+const DEFAULT_ADMIN_USER = process.env.ADMIN_USERNAME || 'harshini2008';
+const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'harshini8019';
+const DEFAULT_WHATSAPP = process.env.DEFAULT_WHATSAPP_NUMBER || '910000000000';
 
 export interface ProductRecord {
   id: number;
